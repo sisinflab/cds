@@ -314,12 +314,16 @@ def run_bads_baseline(problem: ProblemSpec, radius: float, budget: int, seed: in
     lb = -radius * np.ones(problem.dimension)
     ub = radius * np.ones(problem.dimension)
 
+    # Plausible bounds
+    plb = -0.9 * radius * np.ones(problem.dimension)
+    pub = 0.9 * radius * np.ones(problem.dimension)
+
     while tracker.evaluations < budget:
         prev_evals = tracker.evaluations
         np.random.seed(current_seed)
         x0 = np.random.uniform(-radius / 2, radius / 2, size=problem.dimension)
         try:
-            bads = BADS(lambda x: tracker(x), x0, lb, ub, lb, ub,
+            bads = BADS(lambda x: tracker(x), x0, lb, ub, plb, pub,
                         options={"max_fun_evals": budget - tracker.evaluations, "display": "off"})
             bads.optimize()
         except Exception:
