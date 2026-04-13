@@ -1,85 +1,135 @@
-import sys
+import argparse
+import pandas as pd
 
+# Importiamo tutto dal tuo modulo di benchmarking
 from benchmarking_module import (
     BenchmarkSettings,
-    OptimizerConfig,
-    ProblemSpec,
-    build_linear_regression_problem,
-    build_optimizer_configs,
-    build_problem_suite,
-    build_rastrigin_problem,
-    build_rosenbrock_problem,
-    build_shifted_rotated_rastrigin_problem,
     create_summary_table,
-    main,
-    plot_pareto_hyperparameters,
-    plot_results,
-    run_cache_exploration,
-    run_cds,
-    run_cma_es,
-    run_differential_evolution,
-    run_full_benchmark,
-    run_pgd,
-    run_pso,
-    run_quick_benchmark,
-    run_radius_sensitivity_ablation,
-    run_random_search,
-    run_scipy_baseline,
-    run_sensitivity_analysis,
+    run_full_benchmark
 )
-from hpo_module import HPOSettings, main as hpo_main, run_quick_benchmark as run_hpo_quick_benchmark
+
+# Importiamo il modulo HPO
+from hpo_module import main as hpo_main, run_quick_benchmark as run_hpo_quick_benchmark
 
 
-def quick_run():
-    return run_quick_benchmark()
+def quick_run() -> pd.DataFrame:
+    """Run veloce per testare che tutti gli algoritmi e le librerie funzionino senza errori."""
+    print("=====================================================")
+    print(" AVVIO QUICK RUN (Test di integrità)")
+    print(" Budget: 1000 | Seeds: 1 | Dimensioni: 2D")
+    print("=====================================================\n")
+
+    settings = BenchmarkSettings(
+        budget_evaluations=1000,
+        seeds=(42,),
+        dimensions=(2,),
+        # Attiviamo tutto per assicurarci che non ci siano crash di importazione
+        include_cds=True,
+        include_cmaes=True,
+        include_pso=True,
+        include_de=True,
+        include_random=True,
+        include_neldermead=True,
+        include_pdfo=True,
+        include_grid_search=True,
+        include_bads=True,
+        include_nomad=True,
+        include_lshade=True
+    )
+
+    results_df = run_full_benchmark(settings)
+    create_summary_table(results_df)
+    return results_df
 
 
-def quick_hpo_run():
-    return run_hpo_quick_benchmark()
+def main_cli():
+    parser = argparse.ArgumentParser(
+        description="Cellular Direct Search (CDS) - Benchmarking Suite",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
 
+    # --- MODALITÀ DI ESECUZIONE ---
+    parser.add_argument(
+        "mode", nargs="?", default="benchmark",
+        choices=["benchmark", "quick", "hpo", "hpo-quick"],
+        help="Modalità di esecuzione dello script"
+    )
 
-__all__ = [
-    "BenchmarkSettings",
-    "HPOSettings",
-    "OptimizerConfig",
-    "ProblemSpec",
-    "build_linear_regression_problem",
-    "build_optimizer_configs",
-    "build_problem_suite",
-    "build_rastrigin_problem",
-    "build_rosenbrock_problem",
-    "build_shifted_rotated_rastrigin_problem",
-    "create_summary_table",
-    "main",
-    "plot_pareto_hyperparameters",
-    "plot_results",
-    "run_cache_exploration",
-    "run_cds",
-    "run_cma_es",
-    "run_differential_evolution",
-    "run_full_benchmark",
-    "run_pgd",
-    "run_pso",
-    "run_quick_benchmark",
-    "quick_run",
-    "run_radius_sensitivity_ablation",
-    "run_random_search",
-    "run_scipy_baseline",
-    "run_sensitivity_analysis",
-    "quick_hpo_run",
-]
+    # --- IMPOSTAZIONI GLOBALI ---
+    parser.add_argument("--budget", type=int, default=5000, help="Budget totale di valutazioni della Loss")
+    parser.add_argument("--seeds", type=int, default=20, help="Numero di independent restarts (seed diversi)")
+    parser.add_argument("--dims", type=int, nargs="+", default=[10, 20, 30, 40, 50], help="Dimensioni dei problemi da testare")
+    parser.add_argument("--out", type=str, default="risultati_benchmark.csv",
+                        help="Nome del file CSV per il salvataggio")
+
+    # --- FLAG PER DISABILITARE SINGOLI ALGORITMI (Ablation/Parallelizzazione) ---
+    group = parser.add_argument_group("Disattivazione Modelli (Usa questi flag per SALTARE algoritmi specifici)")
+    group.add_argument("--skip-cds", action="store_true", help="Disabilita Cellular Direct Search")
+    group.add_argument("--skip-cmaes", action="store_true", help="Disabilita CMA-ES")
+    group.add_argument("--skip-pso", action="store_true", help="Disabilita PSO")
+    group.add_argument("--skip-de", action="store_true", help="Disabilita Differential Evolution")
+    group.add_argument("--skip-random", action="store_true", help="Disabilita Random Search")
+    group.add_argument("--skip-neldermead", action="store_true", help="Disabilita Nelder-Mead (SciPy)")
+    group.add_argument("--skip-pdfo", action="store_true", help="Disabilita Powell (PDFO)")
+    group.add_argument("--skip-grid", action="store_true", help="Disabilita Pure Grid Search")
+    group.add_argument("--skip-bads", action="store_true", help="Disabilita BADS (Consigliato per run veloci)")
+    group.add_argument("--skip-nomad", action="store_true", help="Disabilita NOMAD")
+    group.add_argument("--skip-lshade", action="store_true", help="Disabilita L-SHADE")
+
+    args = parser.parse_args()
+
+    if args.mode == "benchmark":
+        print("=====================================================")
+        print(" AVVIO BENCHMARK UFFICIALE (IEEE Access Revision)")
+        print("=====================================================")
+        print(f" Dimensioni testate : {args.dims}")
+        print(f" Budget valutazioni : {args.budget}")
+        print(f" Numero di Seeds    : {args.seeds} (da 0 a {args.seeds - 1})")
+        print(f" File di Output     : {args.out}")
+        print("=====================================================\n")
+
+        # Mappiamo gli argomenti della CLI nei setting del nostro modulo
+        # Se un utente passa --skip-bads, args.skip_bads è True, quindi include_bads diventa False.
+        settings_kwargs = {
+            "budget_evaluations": args.budget,
+            "seeds": tuple(range(args.seeds)),
+            "dimensions": tuple(args.dims),
+
+            "include_cds": not args.skip_cds,
+            "include_cmaes": not args.skip_cmaes,
+            "include_pso": not args.skip_pso,
+            "include_de": not args.skip_de,
+            "include_random": not args.skip_random,
+            "include_neldermead": not args.skip_neldermead,
+            "include_pdfo": not args.skip_pdfo,
+            "include_grid_search": not args.skip_grid,
+            "include_bads": not args.skip_bads,
+            "include_nomad": not args.skip_nomad,
+            "include_lshade": not args.skip_lshade,
+        }
+
+        # Inizializza i settaggi
+        settings = BenchmarkSettings(**settings_kwargs)
+
+        # Lancia il super-run
+        results_df = run_full_benchmark(settings)
+
+        # Salva su disco (FONDAMENTALE)
+        results_df.to_csv(args.out, index=False)
+        print(f"\n[+] RUN COMPLETATA! Dati salvati con successo in '{args.out}'.")
+
+        # Mostra la tabella riassuntiva
+        create_summary_table(results_df)
+
+    elif args.mode == "quick":
+        quick_run()
+
+    elif args.mode == "hpo":
+        hpo_main()
+
+    elif args.mode == "hpo-quick":
+        run_hpo_quick_benchmark()
 
 
 if __name__ == "__main__":
-    mode = sys.argv[1].lower() if len(sys.argv) > 1 else "benchmark"
-    if mode == "benchmark":
-        main()
-    elif mode == "quick":
-        quick_run()
-    elif mode == "hpo":
-        hpo_main()
-    elif mode == "hpo-quick":
-        quick_hpo_run()
-    else:
-        print("Usage: python main.py [benchmark|quick|hpo|hpo-quick]")
-        raise SystemExit(2)
+    main_cli()

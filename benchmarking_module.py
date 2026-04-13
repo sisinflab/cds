@@ -67,6 +67,11 @@ class BenchmarkSettings:
     lshade_pop_factors: Tuple[int, ...] = (10, 20,)
 
     # --- NUOVI FLAG PER LE BASELINE (Tutti attivi per il run finale) ---
+    include_cds: bool = True
+    include_cmaes: bool = True
+    include_pso: bool = True
+    include_de: bool = True
+    include_random: bool = True
     include_neldermead: bool = True  # Nelder-Mead nativo Scipy (senza penalty)
     include_pdfo: bool = True  # Powell tramite PDFO/BOBYQA
     include_grid_search: bool = True  # Ablation study sulla griglia fissa
@@ -469,25 +474,30 @@ def build_optimizer_configs(settings: BenchmarkSettings) -> List[OptimizerConfig
     configs: List[OptimizerConfig] =[]
 
     # 1. CELLULAR DIRECT SEARCH
-    for step_size, num_cells in itertools.product(settings.cds_step_sizes, settings.cds_cells):
-        configs.append(OptimizerConfig(
-            name=f"CDS (h={step_size}, cells={num_cells})",
-            runner=run_cds,
-            params={"step_size": step_size, "num_cells": num_cells, "legacy_initialization": settings.legacy_cds_initialization}
-        ))
+    if getattr(settings, 'include_cds', True):
+        for step_size, num_cells in itertools.product(settings.cds_step_sizes, settings.cds_cells):
+            configs.append(OptimizerConfig(
+                name=f"CDS (h={step_size}, cells={num_cells})",
+                runner=run_cds,
+                params={"step_size": step_size, "num_cells": num_cells, "legacy_initialization": settings.legacy_cds_initialization}
+            ))
 
     # 2. CLASSIC POPULATION-BASED & EVOLUTIONARY
-    for sigma_scale in settings.cma_sigma_scales:
-        configs.append(OptimizerConfig(name=f"CMA-ES (sigma={sigma_scale})", runner=run_cma_es, params={"sigma_scale": sigma_scale}))
+    if getattr(settings, 'include_cmaes', True):
+        for sigma_scale in settings.cma_sigma_scales:
+            configs.append(OptimizerConfig(name=f"CMA-ES (sigma={sigma_scale})", runner=run_cma_es, params={"sigma_scale": sigma_scale}))
 
-    for swarm_size in settings.pso_swarm_sizes:
-        configs.append(OptimizerConfig(name=f"PSO (swarm={swarm_size})", runner=run_pso, params={"swarmsize": swarm_size}))
+    if getattr(settings, 'include_pso', True):
+        for swarm_size in settings.pso_swarm_sizes:
+            configs.append(OptimizerConfig(name=f"PSO (swarm={swarm_size})", runner=run_pso, params={"swarmsize": swarm_size}))
 
-    for popsize, strategy in itertools.product(settings.de_population_sizes, settings.de_strategies):
-        configs.append(OptimizerConfig(name=f"DE (pop={popsize}, str={strategy})", runner=run_differential_evolution, params={"popsize": popsize, "strategy": strategy}))
+    if getattr(settings, 'include_de', True):
+        for popsize, strategy in itertools.product(settings.de_population_sizes, settings.de_strategies):
+            configs.append(OptimizerConfig(name=f"DE (pop={popsize}, str={strategy})", runner=run_differential_evolution, params={"popsize": popsize, "strategy": strategy}))
 
     # 3. RANDOM SEARCH (Baseline base)
-    configs.append(OptimizerConfig(name="Random Search", runner=run_random_search, params={}))
+    if getattr(settings, 'include_random', True):
+        configs.append(OptimizerConfig(name="Random Search", runner=run_random_search, params={}))
 
     # 4. CLASSIC DIRECT SEARCH (Aggiornati con i bounds nativi come richiesto da Rev 1)
     if getattr(settings, 'include_neldermead', True):
