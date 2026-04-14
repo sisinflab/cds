@@ -54,7 +54,7 @@ class OptimizerConfig:
 class BenchmarkSettings:
     budget_evaluations: int = 5000
     seeds: Tuple[int, ...] = tuple(range(20))
-    dimensions: Tuple[int, ...] = (10, 20, 30, 40, 50)
+    dimensions: Tuple[int, ...] = (10,)
 
     # CDS Configurations
     legacy_cds_initialization: bool = True
@@ -191,7 +191,8 @@ def run_cma_es(problem: ProblemSpec, radius: float, budget: int, seed: int, sigm
     while tracker.evaluations < budget:
         prev_evals = tracker.evaluations
         np.random.seed(current_seed)
-        x0 = np.random.uniform(-0.5 * radius, 0.5 * radius, size=problem.dimension)
+        safe_bound = (radius / np.sqrt(problem.dimension)) * 0.95
+        x0 = np.random.uniform(-safe_bound, safe_bound, size=problem.dimension)
 
         strategy = cma.CMAEvolutionStrategy(x0, sigma_scale * radius,
                                             {"maxfevals": budget - tracker.evaluations, "verbose": -9,
@@ -266,7 +267,10 @@ def run_neldermead_baseline(problem: ProblemSpec, radius: float, budget: int, se
     while tracker.evaluations < budget:
         prev_evals = tracker.evaluations
         np.random.seed(current_seed)
-        x0 = np.random.uniform(-0.5 * radius, 0.5 * radius, size=problem.dimension).astype(float)
+        # Sostituisci la riga di x0 con:
+        safe_bound = (radius / np.sqrt(problem.dimension)) * 0.95
+        x0 = np.random.uniform(-safe_bound, safe_bound, size=problem.dimension).astype(float)
+
         try:
             minimize(objective_wrapper, x0, method='Nelder-Mead', bounds=bounds,
                      options={"maxfev": budget - tracker.evaluations, "disp": False}, tol=1e-6)
@@ -309,7 +313,8 @@ def run_pdfo_baseline(problem: ProblemSpec, radius: float, budget: int, seed: in
 
         prev_evals = tracker.evaluations
         np.random.seed(current_seed)
-        x0 = np.random.uniform(-0.5 * radius, 0.5 * radius, size=problem.dimension).astype(float)
+        safe_bound = (radius / np.sqrt(problem.dimension)) * 0.95
+        x0 = np.random.uniform(-safe_bound, safe_bound, size=problem.dimension).astype(float)
 
         try:
             # 3. CHIAMATA A PDFO CORRETTA!
@@ -334,6 +339,7 @@ def run_pdfo_baseline(problem: ProblemSpec, radius: float, budget: int, seed: in
 
     return tracker.history_array(), tracker.elapsed_time()
 
+
 def run_bads_baseline(problem: ProblemSpec, radius: float, budget: int, seed: int) -> Tuple[np.ndarray, float]:
     try:
         from pybads import BADS
@@ -346,10 +352,13 @@ def run_bads_baseline(problem: ProblemSpec, radius: float, budget: int, seed: in
 
     lb = -radius * np.ones(problem.dimension)
     ub = radius * np.ones(problem.dimension)
-    plb = -0.9 * radius * np.ones(problem.dimension)
-    pub = 0.9 * radius * np.ones(problem.dimension)
 
-    # Vincolo nativo BADS (restituisce True se VIOLA il vincolo)
+    # LA MAGIA GEOMETRICA: Il cubo plausibile inscritto nella sfera
+    # In questo modo il design iniziale di BADS è 100% valido e non va in log(0)
+    safe_bound = (radius / np.sqrt(problem.dimension)) * 0.95
+    plb = -safe_bound * np.ones(problem.dimension)
+    pub = safe_bound * np.ones(problem.dimension)
+
     def hypersphere_constraint(x):
         x_2d = np.atleast_2d(x)
         return np.sum(x_2d ** 2, axis=1) > radius ** 2
@@ -360,7 +369,9 @@ def run_bads_baseline(problem: ProblemSpec, radius: float, budget: int, seed: in
 
         prev_evals = tracker.evaluations
         np.random.seed(current_seed)
-        x0 = np.random.uniform(-0.5 * radius, 0.5 * radius, size=problem.dimension)
+
+        # x0 sicuro dentro la sfera
+        x0 = np.random.uniform(-safe_bound, safe_bound, size=problem.dimension)
 
         try:
             bads = BADS(
@@ -382,13 +393,29 @@ def run_grid_search_baseline(problem: ProblemSpec, radius: float, budget: int, s
     np.ndarray, float]:
     tracker = ObjectiveTracker(problem.objective)
     np.random.seed(seed)
-    max_c = int(np.floor(radius / step_size))
+    dim = problem.dimension
+
+    batch_size = min(budget, 1000)
 
     while tracker.evaluations < budget:
-        c = np.random.randint(-max_c, max_c + 1, size=problem.dimension)
-        x = c * step_size
-        if np.linalg.norm(x) <= radius:  # Conserviamo il vincolo circolare nativo
-            tracker(x)
+        # 1. Generiamo punti continui dentro la sfera (come per la Random Search)
+        u = np.random.normal(0, 1, (batch_size, dim))
+        norms = np.linalg.norm(u, axis=1, keepdims=True)
+        u = u / norms
+        r = np.random.uniform(0, 1, (batch_size, 1)) ** (1.0 / dim) * radius
+        continuous_points = u * r
+
+        # 2. Li "Snappiamo" (arrotondiamo) ai nodi della griglia
+        grid_points = np.rint(continuous_points / step_size) * step_size
+
+        for pt in grid_points:
+            if tracker.evaluations >= budget:
+                break
+
+            # Poiché l'arrotondamento potrebbe spingerli leggermente fuori dal bordo,
+            # facciamo un ultimo controllo veloce. Lo scarto sarà comunque bassissimo (< 5%)
+            if np.linalg.norm(pt) <= radius:
+                tracker(pt)
 
     return tracker.history_array(), tracker.elapsed_time()
 
@@ -467,7 +494,8 @@ def run_nomad_baseline(problem: ProblemSpec, radius: float, budget: int, seed: i
     while tracker.evaluations < budget:
         prev_evals = tracker.evaluations
         np.random.seed(current_seed)
-        x0 = np.random.uniform(-0.5 * radius, 0.5 * radius, size=problem.dimension).tolist()
+        safe_bound = (radius / np.sqrt(problem.dimension)) * 0.95
+        x0 = np.random.uniform(-safe_bound, safe_bound, size=problem.dimension).tolist()
 
         def bb_func(x):
             try:
@@ -508,15 +536,29 @@ def run_nomad_baseline(problem: ProblemSpec, radius: float, budget: int, seed: i
 def run_random_search(problem: ProblemSpec, radius: float, budget: int, seed: int) -> Tuple[np.ndarray, float]:
     tracker = ObjectiveTracker(problem.objective)
     np.random.seed(seed)
+    dim = problem.dimension
 
-    # Rejection sampling per garantire una distribuzione uniforme DENTRO la sfera
+    # Generazione in batch per sfruttare la velocità di NumPy
+    batch_size = min(budget, 1000)
+
     while tracker.evaluations < budget:
-        point = np.random.uniform(-radius, radius, size=problem.dimension)
-        if np.linalg.norm(point) <= radius:
-            tracker(point)
+        # 1. Direzioni casuali uniformi (Gaussiana normalizzata)
+        u = np.random.normal(0, 1, (batch_size, dim))
+        norms = np.linalg.norm(u, axis=1, keepdims=True)
+        u = u / norms
+
+        # 2. Raggi casuali (Distribuzione uniforme nel volume n-dimensionale)
+        r = np.random.uniform(0, 1, (batch_size, 1)) ** (1.0 / dim) * radius
+
+        # 3. Punti finali garantiti DENTRO la sfera
+        points = u * r
+
+        for pt in points:
+            if tracker.evaluations >= budget:
+                break
+            tracker(pt)
 
     return tracker.history_array(), tracker.elapsed_time()
-
 
 # ==========================================
 # CONFIGURATION BUILDER E UTILITY
@@ -633,7 +675,7 @@ def create_summary_table(df: pd.DataFrame) -> pd.DataFrame:
 
 def run_quick_benchmark() -> Tuple[pd.DataFrame, pd.DataFrame]:
     settings = BenchmarkSettings(
-        budget_evaluations=500, seeds=(42,), dimensions=(2,),
+        budget_evaluations=5000, seeds=(42,), dimensions=(10,),
         cds_step_sizes=(0.5,), cds_cells=(8,)
     )
     results_df = run_full_benchmark(settings)
