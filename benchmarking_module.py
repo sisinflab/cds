@@ -147,7 +147,7 @@ def build_problem_suite(dim: int) -> List[ProblemSpec]:
     # 27 Funzioni totali (BBOB + extra)
     return [
         build_linear_regression_problem(dim=dim),
-        # *[build_bbob_problem(func_id=func_id, dim=dim) for func_id in range(1, 25)],
+        *[build_bbob_problem(func_id=func_id, dim=dim) for func_id in range(1, 25)],
         build_abs_problem(dim=dim),
         build_layeb_problem(dim=dim),
     ]
