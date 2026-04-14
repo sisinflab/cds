@@ -72,9 +72,10 @@ def main_cli():
     group.add_argument("--skip-neldermead", action="store_true", help="Disabilita Nelder-Mead (SciPy)")
     group.add_argument("--skip-pdfo", action="store_true", help="Disabilita Powell (PDFO)")
     group.add_argument("--skip-grid", action="store_true", help="Disabilita Pure Grid Search")
-    group.add_argument("--skip-bads", action="store_true", help="Disabilita BADS (Consigliato per run veloci)")
+    # group.add_argument("--skip-bads", action="store_true", help="Disabilita BADS (Consigliato per run veloci)")
     group.add_argument("--skip-nomad", action="store_true", help="Disabilita NOMAD")
     group.add_argument("--skip-lshade", action="store_true", help="Disabilita L-SHADE")
+    group.add_argument("--skip-turbo", action="store_true", help="Disabilita Turbo")
 
     args = parser.parse_args()
 
@@ -103,9 +104,10 @@ def main_cli():
             "include_neldermead": not args.skip_neldermead,
             "include_pdfo": not args.skip_pdfo,
             "include_grid_search": not args.skip_grid,
-            "include_bads": not args.skip_bads,
+            # "include_bads": not args.skip_bads,
             "include_nomad": not args.skip_nomad,
             "include_lshade": not args.skip_lshade,
+            "include_turbo": not args.skip_turbo
         }
 
         # Inizializza i settaggi

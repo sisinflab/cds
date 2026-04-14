@@ -77,9 +77,10 @@ class BenchmarkSettings:
     include_neldermead: bool = True
     include_pdfo: bool = True
     include_grid_search: bool = True
-    include_bads: bool = True
+    include_bads: bool = False
     include_nomad: bool = True
     include_lshade: bool = True
+    include_turbo: bool = True
 
 
 def _to_scalar(value: np.ndarray | float) -> float:
@@ -482,6 +483,79 @@ def run_nomad_baseline(problem: ProblemSpec, radius: float, budget: int, seed: i
     try:
         import PyNomad
     except ImportError:
+        print("  [!] PyNomad non trovato.")
+        return np.empty((0, 2)), 0.0
+
+    tracker = ObjectiveTracker(problem.objective)
+    current_seed = seed
+
+    # Limiti del Box
+    lb = [-radius] * problem.dimension
+    ub = [radius] * problem.dimension
+
+    while tracker.evaluations < budget:
+        remaining_evals = budget - tracker.evaluations
+        if remaining_evals < 1: break
+
+        prev_evals = tracker.evaluations
+        np.random.seed(current_seed)
+
+        # Punto iniziale sicuro (dentro la sfera)
+        safe_r = (radius / np.sqrt(problem.dimension)) * 0.9
+        x0 = np.random.uniform(-0.5 * safe_r, 0.5 * safe_r, size=problem.dimension).tolist()
+
+        def bb_func(x):
+            try:
+                # 1. Estrazione coordinate
+                dim = x.size()
+                coords = np.array([x.get_coord(i) for i in range(dim)])
+
+                # 2. Hard Barrier Sfera (Matematicamente fair)
+                if np.linalg.norm(coords) > radius:
+                    tracker.evaluations += 1
+                    return 0  # Indica a NOMAD che la valutazione è fallita (fuori vincolo)
+
+                # 3. Valutazione reale
+                val = tracker(coords)
+                if not np.isfinite(val): val = 1e300
+
+                # 4. Restituzione valore (Sintassi NOMAD 4)
+                x.setBBO(str(val).encode("UTF-8"))
+                return 1  # 1: Successo
+            except Exception:
+                return 0
+
+        # PARAMETRI NOMAD 4 (Sintassi aggiornata per velocità e compatibilità)
+        params = [
+            "BB_OUTPUT_TYPE OBJ",
+            f"MAX_BB_EVAL {remaining_evals}",
+            "DISPLAY_DEGREE 0",
+            f"SEED {current_seed}",
+            "DIRECTION_TYPE ORTHO 2n",  # Sostituisce GPS, molto simile alla logica CDS
+            "QUAD_MODEL_SEARCH NO",  # Disattiva modelli quadratici (Velocizza!)
+            "SGTELIB_MODEL_SEARCH NO",  # Disattiva modelli surrogati (Velocizza!)
+            "SPECULATIVE_SEARCH NO"  # Evita valutazioni extra "tentative"
+        ]
+
+        try:
+            # Chiamata alla libreria
+            PyNomad.optimize(bb_func, x0, lb, ub, params)
+        except Exception:
+            # Se NOMAD si ferma per budget o altro, gestiamo l'uscita
+            pass
+
+        # Se l'algoritmo non riesce più a fare valutazioni o il budget è finito, esci
+        if tracker.evaluations <= prev_evals + 1 or tracker.evaluations >= budget:
+            break
+        current_seed += 1
+
+    return tracker.history_array(), tracker.elapsed_time()
+
+
+def run_nomad_baseline_complete(problem: ProblemSpec, radius: float, budget: int, seed: int) -> Tuple[np.ndarray, float]:
+    try:
+        import PyNomad
+    except ImportError:
         print("  [!] PyNomad non installato.")
         return np.empty((0, 2)), 0.0
 
@@ -560,6 +634,49 @@ def run_random_search(problem: ProblemSpec, radius: float, budget: int, seed: in
 
     return tracker.history_array(), tracker.elapsed_time()
 
+
+def run_turbo_baseline(problem: ProblemSpec, radius: float, budget: int, seed: int) -> Tuple[np.ndarray, float]:
+    try:
+        from turbo import Turbo1
+    except ImportError:
+        print("  [!] TuRBO non installato. pip install turbo-opt")
+        return np.empty((0, 2)), 0.0
+
+    tracker = ObjectiveTracker(problem.objective)
+    np.random.seed(seed)
+
+    # 1. Box Bounds
+    lb = -radius * np.ones(problem.dimension)
+    ub = radius * np.ones(problem.dimension)
+
+    # 2. Objective con Hard Barrier per la Sfera
+    def turbo_objective(x):
+        # TuRBO passa un array 1D
+        if np.linalg.norm(x) > radius:
+            tracker.evaluations += 1
+            return 1e10  # Penalty per restare nella sfera
+        val = tracker(x)
+        return float(val) if np.isfinite(val) else 1e10
+
+    # 3. Configurazione TuRBO
+    # TuRBO gestisce internamente il budget e i restart
+    tbo = Turbo1(
+        f=turbo_objective,
+        lb=lb,
+        ub=ub,
+        n_init=2 * problem.dimension + 2,  # Punti iniziali
+        max_evals=budget,
+        batch_size=1,  # Valutazioni sequenziali
+        verbose=False
+    )
+
+    try:
+        tbo.optimize()
+    except Exception:
+        pass
+
+    return tracker.history_array(), tracker.elapsed_time()
+
 # ==========================================
 # CONFIGURATION BUILDER E UTILITY
 # ==========================================
@@ -612,6 +729,9 @@ def build_optimizer_configs(settings: BenchmarkSettings) -> List[OptimizerConfig
         h_mediano = sorted(settings.cds_step_sizes)[len(settings.cds_step_sizes) // 2]
         configs.append(OptimizerConfig(name=f"Pure Grid Search (h={h_mediano})", runner=run_grid_search_baseline,
                                        params={"step_size": h_mediano}))
+
+    if settings.include_turbo:
+        configs.append(OptimizerConfig(name="TuRBO", runner=run_turbo_baseline, params={}))
 
     return configs
 
