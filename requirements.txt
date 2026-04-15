@@ -9,12 +9,14 @@ filelock==3.20.0
 fonttools==4.61.0
 fsspec==2025.12.0
 GPyReg==1.0.4
+gpytorch==1.15.2
 idna==3.11
 iniconfig==2.3.0
 ioh==0.3.22
 Jinja2==3.1.6
 joblib==1.5.2
 kiwisolver==1.4.9
+linear_operator==0.6.1
 Mako==1.3.10
 MarkupSafe==3.0.3
 matplotlib==3.10.7
@@ -29,6 +31,7 @@ packaging==25.0
 pandas==2.3.3
 pdfo==2.2.0
 pillow==12.0.0
+pip-chill==1.0.5
 pluggy==1.6.0
 pyaml==25.7.0
 PyBADS==1.0.6
@@ -54,6 +57,7 @@ threadpoolctl==3.6.0
 torch==2.9.1
 torchvision==0.24.1
 tqdm==4.67.1
+turbo @ git+https://github.com/uber-research/TuRBO.git@de0db39f481d9505bb3610b7b7aa0ebf7702e4a5
 typing_extensions==4.15.0
 tzdata==2025.2
 urllib3==2.6.3

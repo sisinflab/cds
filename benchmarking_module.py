@@ -9,13 +9,10 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import cma
 import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from pyswarm import pso
 from scipy.optimize import differential_evolution, minimize, NonlinearConstraint
-from scipy.stats import ortho_group
 from sklearn.preprocessing import StandardScaler
 import ioh
 
