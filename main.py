@@ -61,6 +61,8 @@ def main_cli():
     parser.add_argument("--dims", type=int, nargs="+", default=[10, 20, 30, 40, 50], help="Dimensioni dei problemi da testare")
     parser.add_argument("--out", type=str, default="risultati_benchmark.csv",
                         help="Nome del file CSV per il salvataggio")
+    parser.add_argument("--start-seed", type=int, nargs="?")
+    parser.add_argument("--end-seed", type=int, nargs="?")
 
     # --- FLAG PER DISABILITARE SINGOLI ALGORITMI (Ablation/Parallelizzazione) ---
     group = parser.add_argument_group("Disattivazione Modelli (Usa questi flag per SALTARE algoritmi specifici)")
@@ -93,7 +95,7 @@ def main_cli():
         # Se un utente passa --skip-bads, args.skip_bads è True, quindi include_bads diventa False.
         settings_kwargs = {
             "budget_evaluations": args.budget,
-            "seeds": tuple(range(args.seeds)),
+            "seeds": tuple(range(args.start_seed, args.end_seed) if args.start_seed else range(args.seeds)),
             "dimensions": tuple(args.dims),
 
             "include_cds": not args.skip_cds,
