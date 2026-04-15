@@ -77,10 +77,10 @@ class BenchmarkSettings:
     include_neldermead: bool = True
     include_pdfo: bool = True
     include_grid_search: bool = True
-    include_bads: bool = False
+    include_bads: bool = True
     include_nomad: bool = True
     include_lshade: bool = True
-    include_turbo: bool = True
+    include_turbo: bool = False
 
 
 def _to_scalar(value: np.ndarray | float) -> float:
