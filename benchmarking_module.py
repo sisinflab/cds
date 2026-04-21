@@ -303,10 +303,9 @@ def run_lshade_baseline(problem: ProblemSpec, radius: float, budget: int, seed: 
     while tracker.evaluations < budget:
         prev = tracker.evaluations
         problem_dict = {"bounds": FloatVar(lb=[-radius] * problem.dimension, ub=[radius] * problem.dimension),
-                        "minmax": "min", "obj_func": obj_w}
+                        "minmax": "min", "obj_func": obj_w, "log_to": None}
         model = SHADE.L_SHADE(epoch=10000, pop_size=pop_factor * problem.dimension)
-        model.solve(problem_dict, seed=current_seed, termination={"max_fe": budget - tracker.evaluations},
-                    verbose=False)
+        model.solve(problem_dict, seed=current_seed, termination={"max_fe": budget - tracker.evaluations})
         if tracker.evaluations <= prev + 1: break
         current_seed += 1
     return tracker.history_array(), tracker.elapsed_time()
