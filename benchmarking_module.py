@@ -269,15 +269,30 @@ def run_bads_baseline(problem: ProblemSpec, radius: float, budget: int, seed: in
     def con(x):
         return np.sum(np.atleast_2d(x) ** 2, axis=1) > radius ** 2
 
+    def safe_obj(x):
+        if np.linalg.norm(x) > radius:
+            tracker.evaluations += 1
+            return 1e5
+        val = tracker(x)
+        return float(val) if np.isfinite(val) else 1e5
+
     current_seed = seed
     safe_r = radius / np.sqrt(problem.dimension) * 0.9
     while tracker.evaluations < budget:
+        remaining = budget - tracker.evaluations
+        if remaining < problem.dimension + 2: break
+
         prev = tracker.evaluations
         x0 = np.random.default_rng(current_seed).uniform(-0.5 * safe_r, 0.5 * safe_r, size=problem.dimension)
-        bads = BADS(tracker, x0, -radius * np.ones(problem.dimension), radius * np.ones(problem.dimension),
-                    -safe_r * np.ones(problem.dimension), safe_r * np.ones(problem.dimension), non_box_cons=con)
-        bads.options['max_fun_evals'], bads.options['display'] = budget - tracker.evaluations, 'off'
-        bads.optimize()
+
+        try:
+            bads = BADS(safe_obj, x0, -radius * np.ones(problem.dimension), radius * np.ones(problem.dimension),
+                        -safe_r * np.ones(problem.dimension), safe_r * np.ones(problem.dimension), non_box_cons=con,
+                        options={"max_fun_evals": remaining, "display": "off"})
+            bads.optimize()
+        except Exception:
+            print('Error in BADS optimization')
+
         if tracker.evaluations <= prev + 1: break
         current_seed += 1
     return tracker.history_array(), tracker.elapsed_time()
