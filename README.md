@@ -1,4 +1,4 @@
-# Cellular Direct Search Benchmark Suite
+# Cellular Direct Search
 
 Codebase for benchmarking `Cellular Direct Search (CDS)` (under review) against standard optimizers on BBOB and additional test functions.
 
