@@ -1,126 +1,70 @@
 import argparse
 import pandas as pd
-from benchmarking_module import (
-    BenchmarkSettings,
-    create_summary_table,
-    run_full_benchmark
-)
+from benchmarking_module import BenchmarkSettings, create_summary_table, run_full_benchmark
 from hpo_module import main as hpo_main, run_quick_benchmark as run_hpo_quick_benchmark
-
 
 def quick_run() -> pd.DataFrame:
     """Quick run to verify all optimizers and dependencies execute without errors."""
-    print("=====================================================")
-    print(" STARTING QUICK RUN (Integrity Check)")
-    print(" Budget: 1000 | Seeds: 1 | Dimensions: 2D")
-    print("=====================================================\n")
-
-    settings = BenchmarkSettings(
-        budget_evaluations=1000,
-        seeds=(42,),
-        dimensions=(2,),
-        include_cds=True,
-        include_cmaes=True,
-        include_pso=True,
-        include_de=True,
-        include_random=True,
-        include_neldermead=True,
-        include_pdfo=True,
-        include_grid_search=True,
-        include_bads=True,
-        include_nomad=True,
-        include_lshade=True
-    )
-
+    print('=====================================================')
+    print(' STARTING QUICK RUN (Integrity Check)')
+    print(' Budget: 1000 | Seeds: 1 | Dimensions: 2D')
+    print('=====================================================\n')
+    settings = BenchmarkSettings(budget_evaluations=1000, seeds=(42,), dimensions=(2,), include_cds=True, include_cmaes=True, include_pso=True, include_de=True, include_random=True, include_neldermead=True, include_pdfo=True, include_grid_search=True, include_bads=True, include_nomad=True, include_lshade=True)
     results_df = run_full_benchmark(settings)
     create_summary_table(results_df)
     return results_df
 
-
 def main_cli():
-    parser = argparse.ArgumentParser(
-        description="Cellular Direct Search (CDS) - Benchmarking Suite",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    parser.add_argument(
-        "mode", nargs="?", default="benchmark",
-        choices=["benchmark", "quick", "hpo", "hpo-quick"],
-        help="Script execution mode"
-    )
-    parser.add_argument("--budget", type=int, default=5000, help="Total objective-evaluation budget")
-    parser.add_argument("--seeds", type=int, default=20, help="Number of independent restarts (different seeds)")
-    parser.add_argument("--dims", type=int, nargs="+", default=[10, 20, 30, 40, 50], help="Problem dimensions to test")
-    parser.add_argument("--out", type=str, default="benchmark_results.csv",
-                        help="Output CSV filename")
-    parser.add_argument("--start-seed", type=int, nargs="?")
-    parser.add_argument("--end-seed", type=int, nargs="?")
-    group = parser.add_argument_group("Model Exclusion (Use flags below to skip selected optimizers)")
-    group.add_argument("--skip-cds", action="store_true", help="Disable Cellular Direct Search")
-    group.add_argument("--skip-cmaes", action="store_true", help="Disable CMA-ES")
-    group.add_argument("--skip-pso", action="store_true", help="Disable PSO")
-    group.add_argument("--skip-de", action="store_true", help="Disable Differential Evolution")
-    group.add_argument("--skip-random", action="store_true", help="Disable Random Search")
-    group.add_argument("--skip-neldermead", action="store_true", help="Disable Nelder-Mead (SciPy)")
-    group.add_argument("--skip-pdfo", action="store_true", help="Disable Powell (PDFO)")
-    group.add_argument("--skip-grid", action="store_true", help="Disable Pure Grid Search")
-    group.add_argument("--skip-bads", action="store_true", help="Disable BADS (recommended for faster runs)")
-    group.add_argument("--skip-nomad", action="store_true", help="Disable NOMAD")
-    group.add_argument("--skip-lshade", action="store_true", help="Disable L-SHADE")
-
+    parser = argparse.ArgumentParser(description='Cellular Direct Search (CDS) - Benchmarking Suite', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('mode', nargs='?', default='benchmark', choices=['benchmark', 'quick', 'hpo', 'hpo-quick'], help='Script execution mode')
+    parser.add_argument('--budget', type=int, default=5000, help='Total objective-evaluation budget')
+    parser.add_argument('--seeds', type=int, default=20, help='Number of independent restarts (different seeds)')
+    parser.add_argument('--dims', type=int, nargs='+', default=[10, 20, 30, 40, 50], help='Problem dimensions to test')
+    parser.add_argument('--out', type=str, default='benchmark_results.csv', help='Output CSV filename')
+    parser.add_argument('--start-seed', type=int, nargs='?')
+    parser.add_argument('--end-seed', type=int, nargs='?')
+    group = parser.add_argument_group('Model Exclusion (Use flags below to skip selected optimizers)')
+    group.add_argument('--skip-cds', action='store_true', help='Disable Cellular Direct Search')
+    group.add_argument('--skip-cmaes', action='store_true', help='Disable CMA-ES')
+    group.add_argument('--skip-pso', action='store_true', help='Disable PSO')
+    group.add_argument('--skip-de', action='store_true', help='Disable Differential Evolution')
+    group.add_argument('--skip-random', action='store_true', help='Disable Random Search')
+    group.add_argument('--skip-neldermead', action='store_true', help='Disable Nelder-Mead (SciPy)')
+    group.add_argument('--skip-pdfo', action='store_true', help='Disable Powell (PDFO)')
+    group.add_argument('--skip-grid', action='store_true', help='Disable Pure Grid Search')
+    group.add_argument('--skip-bads', action='store_true', help='Disable BADS (recommended for faster runs)')
+    group.add_argument('--skip-nomad', action='store_true', help='Disable NOMAD')
+    group.add_argument('--skip-lshade', action='store_true', help='Disable L-SHADE')
     args = parser.parse_args()
-
-    if args.mode == "benchmark":
-        print("=====================================================")
-        print(" STARTING OFFICIAL BENCHMARK RUN (IEEE Access Revision)")
-        print("=====================================================")
-        print(f" Tested dimensions  : {args.dims}")
-        print(f" Eval budget        : {args.budget}")
+    if args.mode == 'benchmark':
+        print('=====================================================')
+        print(' STARTING OFFICIAL BENCHMARK RUN (IEEE Access Revision)')
+        print('=====================================================')
+        print(f' Tested dimensions  : {args.dims}')
+        print(f' Eval budget        : {args.budget}')
         if (args.start_seed is None) != (args.end_seed is None):
-            parser.error("Specify both --start-seed and --end-seed, or neither.")
-
+            parser.error('Specify both --start-seed and --end-seed, or neither.')
         if args.start_seed is not None:
             if args.end_seed <= args.start_seed:
-                parser.error("--end-seed must be greater than --start-seed.")
+                parser.error('--end-seed must be greater than --start-seed.')
             seeds = tuple(range(args.start_seed, args.end_seed))
         else:
             if args.seeds <= 0:
-                parser.error("--seeds must be > 0.")
+                parser.error('--seeds must be > 0.')
             seeds = tuple(range(args.seeds))
-
-        print(f" Seed range         : ({seeds[0]} to {seeds[-1]})")
-        print(f" Output file        : {args.out}")
-        print("=====================================================\n")
-        settings_kwargs = {
-            "budget_evaluations": args.budget,
-            "seeds": seeds,
-            "dimensions": tuple(args.dims),
-
-            "include_cds": not args.skip_cds,
-            "include_cmaes": not args.skip_cmaes,
-            "include_pso": not args.skip_pso,
-            "include_de": not args.skip_de,
-            "include_random": not args.skip_random,
-            "include_neldermead": not args.skip_neldermead,
-            "include_pdfo": not args.skip_pdfo,
-            "include_grid_search": not args.skip_grid,
-            "include_bads": not args.skip_bads,
-            "include_nomad": not args.skip_nomad,
-            "include_lshade": not args.skip_lshade,
-        }
+        print(f' Seed range         : ({seeds[0]} to {seeds[-1]})')
+        print(f' Output file        : {args.out}')
+        print('=====================================================\n')
+        settings_kwargs = {'budget_evaluations': args.budget, 'seeds': seeds, 'dimensions': tuple(args.dims), 'include_cds': not args.skip_cds, 'include_cmaes': not args.skip_cmaes, 'include_pso': not args.skip_pso, 'include_de': not args.skip_de, 'include_random': not args.skip_random, 'include_neldermead': not args.skip_neldermead, 'include_pdfo': not args.skip_pdfo, 'include_grid_search': not args.skip_grid, 'include_bads': not args.skip_bads, 'include_nomad': not args.skip_nomad, 'include_lshade': not args.skip_lshade}
         settings = BenchmarkSettings(**settings_kwargs)
         results_df = run_full_benchmark(settings, output_csv=args.out)
         print(f"\n[+] RUN COMPLETED! Results were also streamed to '{args.out}' during execution.")
         create_summary_table(results_df)
-
-    elif args.mode == "quick":
+    elif args.mode == 'quick':
         quick_run()
-
-    elif args.mode == "hpo":
+    elif args.mode == 'hpo':
         hpo_main()
-
-    elif args.mode == "hpo-quick":
+    elif args.mode == 'hpo-quick':
         run_hpo_quick_benchmark()
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main_cli()
