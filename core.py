@@ -138,9 +138,21 @@ class AbstractCellularDirectSearch(ABC):
                 continue
             changed_axis = int(np.where(cell_array != best_neighbor)[0][0])
             denominator = max(self.step_size[changed_axis], 1e-12)
-            step_magnitude = max(1, int((current_value - best_neighbor_value) / denominator))
-            trial = cell_array.copy()
             direction = int(np.sign(best_neighbor[changed_axis] - cell_array[changed_axis]))
+            if hasattr(self, 'grid_shape'):
+                if direction > 0:
+                    max_step = int(self.grid_shape[changed_axis] - 1 - cell_array[changed_axis])
+                else:
+                    max_step = int(cell_array[changed_axis])
+            else:
+                max_step = 1
+            improvement = current_value - best_neighbor_value
+            if max_step <= 1 or (not np.isfinite(improvement)):
+                step_magnitude = max(1, max_step)
+            else:
+                capped_improvement = min(float(improvement), float(max_step) * denominator)
+                step_magnitude = max(1, int(capped_improvement / denominator))
+            trial = cell_array.copy()
             trial[changed_axis] += direction * step_magnitude
             trial_cell = self._as_cell(trial)
             best_neighbor_cell = self._as_cell(best_neighbor)

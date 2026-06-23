@@ -67,6 +67,7 @@ class DirectGOLibBenchmarkSettings:
     dimensions: Tuple[int, ...] = (10,)
     instances: Tuple[int, ...] = (1, 2, 3, 4, 5)
     families: Tuple[str, ...] = ("ABS", "Layeb")
+    start_source: Optional[str] = None
     cds_h_list: Tuple[float, ...] = (0.0625, 0.125, 0.25, 0.5, 1.0)
     cds_n_list: Tuple[int, ...] = (8, 32)
     cma_sigma_list: Tuple[float, ...] = (0.1, 0.3, 0.5)
@@ -383,6 +384,40 @@ def directgolib_abs_layeb_functions(families: Sequence[str] = ("ABS", "Layeb")) 
     return functions
 
 
+def _normalise_source_name(source_name: str) -> str:
+    cleaned = source_name.strip().lower().replace("_", "")
+    if cleaned.startswith("abs"):
+        suffix = cleaned[3:]
+        if suffix.isdigit():
+            return f"abs{int(suffix):02d}"
+    if cleaned.startswith("layeb"):
+        suffix = cleaned[5:]
+        if suffix.isdigit():
+            return f"layeb{int(suffix):02d}"
+    return cleaned
+
+
+def _source_order(source_name: str) -> Tuple[int, int]:
+    normalised = _normalise_source_name(source_name)
+    if normalised.startswith("abs") and normalised[3:].isdigit():
+        return (0, int(normalised[3:]))
+    if normalised.startswith("layeb") and normalised[5:].isdigit():
+        return (1, int(normalised[5:]))
+    return (99, 0)
+
+
+def _filter_functions_from_source(functions: List[DirectGOLibFunction], start_source: Optional[str]) -> List[DirectGOLibFunction]:
+    if start_source is None:
+        return functions
+    start_key = _source_order(start_source)
+    if start_key[0] == 99:
+        raise ValueError(f"Unknown DIRECTGOLib start source: {start_source}")
+    selected = [function for function in functions if _source_order(function.source_name) >= start_key]
+    if not selected:
+        raise ValueError(f"No DIRECTGOLib functions selected from start source: {start_source}")
+    return selected
+
+
 def _unif(count: int, seed: int) -> np.ndarray:
     inseed = abs(int(seed))
     if inseed < 1:
@@ -527,9 +562,11 @@ def build_directgolib_abs_layeb_suite(
     dim: int,
     instances: Sequence[int] = (1, 2, 3, 4, 5),
     families: Sequence[str] = ("ABS", "Layeb"),
+    start_source: Optional[str] = None,
 ) -> List[DirectGOLibProblem]:
     problems: List[DirectGOLibProblem] = []
-    for function in directgolib_abs_layeb_functions(families):
+    functions = _filter_functions_from_source(directgolib_abs_layeb_functions(families), start_source)
+    for function in functions:
         if dim < function.min_dimension:
             continue
         for instance in instances:
@@ -836,7 +873,7 @@ def run_directgolib_benchmark(settings: Optional[DirectGOLibBenchmarkSettings] =
         csv_writer.writeheader()
     try:
         for dim in config.dimensions:
-            problems = build_directgolib_abs_layeb_suite(dim=dim, instances=config.instances, families=config.families)
+            problems = build_directgolib_abs_layeb_suite(dim=dim, instances=config.instances, families=config.families, start_source=config.start_source)
             for problem in problems:
                 print(f"\n===== DIRECTGOLib PROBLEM: {problem.name} =====")
                 for optimizer in optimizer_configs:

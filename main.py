@@ -25,6 +25,7 @@ def main_cli():
     parser.add_argument('--end-seed', type=int, nargs='?')
     parser.add_argument('--instances', type=int, nargs='+', default=[1, 2, 3, 4, 5], help='DIRECTGOLib shifted/rotated instances to test')
     parser.add_argument('--families', type=str, nargs='+', default=['ABS', 'Layeb'], choices=['ABS', 'Layeb', 'abs', 'layeb'], help='DIRECTGOLib families to include')
+    parser.add_argument('--start-source', type=str, default=None, help='DIRECTGOLib source name to resume from, e.g. Layeb02')
     group = parser.add_argument_group('Model Exclusion (Use flags below to skip selected optimizers)')
     group.add_argument('--skip-cds', action='store_true', help='Disable Cellular Direct Search')
     group.add_argument('--skip-cmaes', action='store_true', help='Disable CMA-ES')
@@ -90,6 +91,8 @@ def main_cli():
         print('=====================================================')
         print(f' Families           : {families}')
         print(f' Instances          : {instances} (1-2 shifted, 3-5 shifted+rotated)')
+        if args.start_source is not None:
+            print(f' Start source       : {args.start_source}')
         print(f' Tested dimensions  : {args.dims}')
         print(f' Eval budget        : {args.budget}')
         print(f' Seed range         : ({seeds[0]} to {seeds[-1]})')
@@ -101,6 +104,7 @@ def main_cli():
             dimensions=tuple(args.dims),
             instances=instances,
             families=families,
+            start_source=args.start_source,
             include_cds=not args.skip_cds,
             include_cmaes=not args.skip_cmaes,
             include_pso=not args.skip_pso,

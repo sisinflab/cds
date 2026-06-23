@@ -14,6 +14,7 @@ pip install -r requirements.txt
 python3 main.py quick
 python3 main.py benchmark --budget 5000 --seeds 20 --dims 10 20 30 --out results/benchmark_results.csv
 python3 main.py directgolib --budget 5000 --seeds 20 --dims 10 --instances 1 2 3 4 5 --out results/directgolib_abs_layeb_shifted.csv
+python3 main.py directgolib --budget 5000 --seeds 20 --dims 10 --families Layeb --start-source Layeb02 --out results/directgolib_layeb02_onward.csv
 python3 main.py hpo-quick
 ```
 
