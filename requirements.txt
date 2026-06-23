@@ -24,7 +24,7 @@ mealpy
 mpmath
 networkx
 numdifftools
-numpy
+numpy < 2
 opfunu
 optuna
 packaging

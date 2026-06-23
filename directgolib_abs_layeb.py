@@ -660,7 +660,11 @@ def run_pdfo_box(problem: DirectGOLibProblem, budget: int, seed: int) -> Tuple[n
     while tracker.evaluations < budget:
         previous = tracker.evaluations
         x0 = np.random.default_rng(current_seed).uniform(lower, upper)
-        pdfo.pdfo(tracker, x0, bounds=problem.bounds, options={"maxfev": budget - tracker.evaluations})
+        try:
+            pdfo.pdfo(tracker, x0, bounds=problem.bounds, options={"maxfev": budget - tracker.evaluations})
+        except (ImportError, OSError, RuntimeError) as exc:
+            print(f"PDFO unavailable; skipping this run ({exc})")
+            break
         if tracker.evaluations <= previous + 1:
             break
         current_seed += 1
