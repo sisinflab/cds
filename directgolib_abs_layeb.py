@@ -513,6 +513,8 @@ def _compute_instance_parameters(function: DirectGOLibFunction, dim: int, instan
     upper = np.full(dim, function.upper, dtype=float)
     center = (lower + upper) / 2.0
     xmin = function.xmin(dim)
+    if instance == 0:
+        return np.eye(dim), np.zeros(dim, dtype=float)
     rotation = np.eye(dim) if instance in (1, 2) else _compute_rotation(instance, dim)
     shift_min, shift_max = _compute_shift_bounds(rotation, xmin, lower, upper, center, instance)
     shift = shift_min + 0.1 * (shift_max - shift_min) * _rng_uniform(instance, dim)
@@ -520,8 +522,8 @@ def _compute_instance_parameters(function: DirectGOLibFunction, dim: int, instan
 
 
 def make_directgolib_problem(function: DirectGOLibFunction, dim: int, instance: int) -> DirectGOLibProblem:
-    if instance < 1 or instance > 5:
-        raise ValueError(f"DIRECTGOLib instance must be in [1, 5], got {instance}")
+    if instance < 0 or instance > 5:
+        raise ValueError(f"DIRECTGOLib instance must be in [0, 5], got {instance}")
     if dim < function.min_dimension:
         raise ValueError(f"{function.source_name} requires dimension >= {function.min_dimension}, got {dim}")
     lower = np.full(dim, function.lower, dtype=float)
@@ -540,7 +542,12 @@ def make_directgolib_problem(function: DirectGOLibFunction, dim: int, instance: 
         transformed = np.where(np.isclose(transformed, xmin, atol=1e-12, rtol=0.0), xmin, transformed)
         return function.objective(transformed)
 
-    rotated_label = "shift+rot" if instance >= 3 else "shift"
+    if instance == 0:
+        rotated_label = "original"
+    elif instance >= 3:
+        rotated_label = "shift+rot"
+    else:
+        rotated_label = "shift"
     name = f"DIRECTGOLib {function.source_name} ({rotated_label} inst={instance}) ({dim}D)"
     return DirectGOLibProblem(
         name=name,

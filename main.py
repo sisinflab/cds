@@ -23,7 +23,7 @@ def main_cli():
     parser.add_argument('--out', type=str, default='benchmark_results.csv', help='Output CSV filename')
     parser.add_argument('--start-seed', type=int, nargs='?')
     parser.add_argument('--end-seed', type=int, nargs='?')
-    parser.add_argument('--instances', type=int, nargs='+', default=[1, 2, 3, 4, 5], help='DIRECTGOLib shifted/rotated instances to test')
+    parser.add_argument('--instances', type=int, nargs='+', default=[1, 2, 3, 4, 5], help='DIRECTGOLib instances to test: 0 original, 1-2 shifted, 3-5 shifted+rotated')
     parser.add_argument('--families', type=str, nargs='+', default=['ABS', 'Layeb'], choices=['ABS', 'Layeb', 'abs', 'layeb'], help='DIRECTGOLib families to include')
     parser.add_argument('--start-source', type=str, default=None, help='DIRECTGOLib source name to resume from, e.g. Layeb02')
     group = parser.add_argument_group('Model Exclusion (Use flags below to skip selected optimizers)')
@@ -83,14 +83,14 @@ def main_cli():
                 parser.error('--seeds must be > 0.')
             seeds = tuple(range(args.seeds))
         instances = tuple(args.instances)
-        if any(instance < 1 or instance > 5 for instance in instances):
-            parser.error('--instances must contain only DIRECTGOLib instances 1..5.')
+        if any(instance < 0 or instance > 5 for instance in instances):
+            parser.error('--instances must contain only DIRECTGOLib instances 0..5.')
         families = tuple('ABS' if family.lower() == 'abs' else 'Layeb' for family in args.families)
         print('=====================================================')
         print(' STARTING DIRECTGOLib ABS/Layeb SHIFTED BENCHMARK')
         print('=====================================================')
         print(f' Families           : {families}')
-        print(f' Instances          : {instances} (1-2 shifted, 3-5 shifted+rotated)')
+        print(f' Instances          : {instances} (0 original, 1-2 shifted, 3-5 shifted+rotated)')
         if args.start_source is not None:
             print(f' Start source       : {args.start_source}')
         print(f' Tested dimensions  : {args.dims}')
