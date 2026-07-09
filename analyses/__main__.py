@@ -7,9 +7,9 @@ from collections.abc import Sequence
 
 COMMANDS = {
     "grid-ablation": "analyses.grid_ablation_table",
-    "direct-ranking": "analyses.direct_ranking",
+    "directgolib-ranking": "analyses.directgolib_ranking",
     "direct-bias": "analyses.direct_bias",
-    "legacy-ranking": "analyses.ranking",
+    "bbob-ranking": "analyses.bbob_ranking",
     "pareto": "analyses.pareto",
     "sensitivity": "analyses.sensitivity_analysis",
     "plots": "analyses.plots",

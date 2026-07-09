@@ -23,8 +23,8 @@ python3 main.py hpo-quick
 All analysis scripts are exposed through one module entrypoint:
 
 ```bash
-python3 -m analyses legacy-ranking
-python3 -m analyses direct-ranking
+python3 -m analyses bbob-ranking
+python3 -m analyses directgolib-ranking
 python3 -m analyses direct-bias
 python3 -m analyses grid-ablation
 python3 -m analyses grid-ablation --detail
