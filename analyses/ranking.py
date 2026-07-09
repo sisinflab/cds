@@ -1,112 +1,242 @@
-import pandas as pd
-import numpy as np
+from __future__ import annotations
+
+import argparse
 import re
-import ioh
-FILE_PATH = '../results/cds_benchmarking_complete_results.csv'
+from collections.abc import Sequence
+from pathlib import Path
 
-def get_base_optimizer(name):
-    if 'CDS' in name:
-        return 'CDS (Ours)'
-    if 'CMA-ES' in name:
-        return 'CMA-ES'
-    if 'PSO' in name:
-        return 'PSO'
-    if 'DE' in name and 'L-SHADE' not in name:
-        return 'DE'
-    if 'L-SHADE' in name:
-        return 'L-SHADE'
-    if 'Nelder-Mead' in name:
-        return 'Nelder-Mead'
-    if 'Powell' in name:
-        return 'Powell (PDFO)'
-    if 'Grid Search' in name:
-        return 'Pure Grid Search'
-    if 'Random' in name:
-        return 'Random Search'
-    if 'BADS' in name:
-        return 'BADS'
-    if 'NOMAD' in name:
-        return 'NOMAD'
-    return name
+import numpy as np
+import pandas as pd
 
-def get_problem_class(prob_name):
-    if 'Linear Regression' in prob_name:
-        return '6. Convex (Sanity Check)'
-    if 'ABS' in prob_name or 'Layeb' in prob_name:
-        return '5. Irregular / Non-Smooth'
-    match = re.search('F(\\d+)', prob_name)
+from analyses.direct_ranking import (
+    OPTIMIZER_ORDER,
+    read_legacy_results,
+    render_table,
+    select_fair_best_configs,
+)
+
+
+DEFAULT_CSV = Path(__file__).resolve().parents[1] / "results" / "cds_benchmarking_complete_results.csv"
+
+
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Ranking analysis for BBOB and linear-regression benchmarks.")
+    parser.add_argument("--csv", type=Path, default=DEFAULT_CSV)
+    parser.add_argument("--dimension", type=int, default=10)
+    parser.add_argument(
+        "--deep-dive",
+        nargs="+",
+        default=["Linear Regression", "F8", "F15", "F19", "F22"],
+        help="Problem-name fragments included in the detailed gap table.",
+    )
+    parser.add_argument(
+        "--sensitivity-fragment",
+        default="F15",
+        help="Problem-name fragment used for CDS hyperparameter sensitivity coordinates.",
+    )
+    return parser.parse_args(argv)
+
+
+def get_problem_class(source: str) -> str:
+    if "Linear Regression" in source:
+        return "6. Convex sanity check"
+
+    match = re.search(r"F(\d+)", source)
     if not match:
-        return 'Unknown'
+        return "Unknown"
+
     fid = int(match.group(1))
     if 1 <= fid <= 5:
-        return '1. Separable'
+        return "1. Separable"
     if 6 <= fid <= 9:
-        return '2. Moderate Cond.'
+        return "2. Moderate conditioning"
     if 10 <= fid <= 14:
-        return '3. High Cond.'
+        return "3. High conditioning"
     if 15 <= fid <= 19:
-        return '4. Multi-modal (Global)'
+        return "4. Multimodal global structure"
     if 20 <= fid <= 24:
-        return '5. Multi-modal (Weak)'
-    return 'Unknown'
+        return "5. Multimodal weak structure"
+    return "Unknown"
 
-def get_true_optimum(prob_name, dim):
-    clean_name = re.sub('\\s*\\(?[\\d]+D\\)?\\s*', '', prob_name).strip()
-    if 'BBOB' in clean_name:
-        match = re.search('F(\\d+)', clean_name)
-        if match:
-            fid = int(match.group(1))
-            try:
-                p = ioh.get_problem(fid, instance=1, dimension=dim, problem_class=ioh.ProblemClass.BBOB)
-                return p.optimum.y
-            except:
-                pass
-    if 'ABS' in clean_name or 'Layeb' in clean_name:
-        return 0.0
-    return None
-print('Data Analysis started (Anti-Bias Protocol)...')
-df = pd.read_csv(FILE_PATH, sep=';')
-df['Problem_Clean'] = df['Problem'].str.replace('\\s*\\(?[\\d]+D\\)?\\s*', '', regex=True).str.strip()
-df['Optimizer_Base'] = df['Optimizer'].apply(get_base_optimizer)
-df['Class'] = df['Problem_Clean'].apply(get_problem_class)
-df['f_opt'] = df.apply(lambda row: get_true_optimum(row['Problem_Clean'], row['Dimension']), axis=1)
-min_found = df.groupby(['Problem_Clean', 'Dimension', 'Seed'])['Final Loss'].transform('min')
-df['f_opt'] = df['f_opt'].fillna(min_found)
-df['Opt_Gap'] = (df['Final Loss'] - df['f_opt']).clip(lower=0)
-df_configs = df.groupby(['Problem_Clean', 'Dimension', 'Optimizer_Base', 'Optimizer'])['Opt_Gap'].mean().reset_index()
-idx_best_configs = df_configs.groupby(['Problem_Clean', 'Dimension', 'Optimizer_Base'])['Opt_Gap'].idxmin()
-best_configs_list = df_configs.loc[idx_best_configs, ['Problem_Clean', 'Dimension', 'Optimizer']]
-df_final = pd.merge(df, best_configs_list, on=['Problem_Clean', 'Dimension', 'Optimizer'])
-df_agg = df_final.groupby(['Problem_Clean', 'Class', 'Dimension', 'Optimizer_Base']).agg(mu_gap=('Opt_Gap', 'mean'), std_gap=('Opt_Gap', 'std'), mu_time=('Time (s)', 'mean')).reset_index()
-df_agg['Rank'] = df_agg.groupby(['Problem_Clean', 'Dimension'])['mu_gap'].rank(method='min')
 
-def print_latex_pivot(pivot_df, title):
-    col_order = ['CDS (Ours)', 'CMA-ES', 'BADS', 'NOMAD', 'Powell (PDFO)', 'PSO', 'DE', 'L-SHADE', 'Nelder-Mead', 'Pure Grid Search', 'Random Search']
-    cols = [c for c in col_order if c in pivot_df.columns]
-    print(f'\n--- {title} ---')
-    print(pivot_df[cols].round(2).to_markdown())
-tab1 = df_agg[df_agg['Dimension'] == 10].pivot_table(index='Class', columns='Optimizer_Base', values='Rank', aggfunc='mean')
-print_latex_pivot(tab1, 'TABLE 1: Average Rank 10D')
-tab2 = df_agg[df_agg['Optimizer_Base'] != 'BADS'].pivot_table(index='Dimension', columns='Optimizer_Base', values='Rank', aggfunc='mean')
-print_latex_pivot(tab2, 'TABLE 2: Scalability (Global Rank)')
-target_probs = ['Linear Regression', 'Rosenbrock', 'Rastrigin', 'ABS', 'Layeb']
-df_deep = df_agg[(df_agg['Dimension'] == 10) & df_agg['Problem_Clean'].str.contains('|'.join(target_probs))]
+def ordered_columns(table: pd.DataFrame) -> list[str]:
+    return [column for column in OPTIMIZER_ORDER if column in table.columns]
 
-def fmt(mu, std):
-    return f'{mu:.2e} ± {std:.2e}' if mu < 0.01 and mu > 0 else f'{mu:.2f} ± {std:.2f}'
-df_deep['Formatted'] = df_deep.apply(lambda r: fmt(r['mu_gap'], r['std_gap']), axis=1)
-tab3 = df_deep.pivot(index='Problem_Clean', columns='Optimizer_Base', values='Formatted')
-print_latex_pivot(tab3, 'TABLE 3: Deep-Dive Real Values (Gap 10D)')
-print('\n--- TIKZ SENSITIVITY CODE (Rastrigin 10D) ---')
-df_sens = df[(df['Optimizer_Base'] == 'CDS (Ours)') & df['Problem_Clean'].str.contains('Rastrigin') & (df['Dimension'] == 10)]
-df_sens_agg = df_sens.groupby('Optimizer').agg(mu_gap=('Opt_Gap', 'mean')).reset_index()
 
-def extract_h_n(name):
-    h = float(re.search('h=([0-9.]+)', name).group(1))
-    n = int(re.search('N=([0-9]+)', name).group(1))
-    return (h, n)
-df_sens_agg[['h', 'N']] = df_sens_agg['Optimizer'].apply(lambda x: pd.Series(extract_h_n(x)))
-for n, group in df_sens_agg.groupby('N'):
-    group = group.sort_values('h', ascending=False)
-    coords = ' '.join([f"({row['h']}, {max(row['mu_gap'], 0.0001):.4f})" for _, row in group.iterrows()])
-    print(f'% N={n}\n\\addplot coordinates {{ {coords} }};\n\\addlegendentry{{$N_\\mathrm{{init}}={n}$}}')
+def print_pivot(table: pd.DataFrame, title: str, digits: int = 2) -> None:
+    cols = ordered_columns(table)
+    if cols:
+        table = table[cols]
+    print(f"\n--- {title} ---")
+    print(render_table(table.round(digits)))
+
+
+def build_aggregate(df_best: pd.DataFrame) -> pd.DataFrame:
+    df_best = df_best.copy()
+    df_best["Class"] = df_best["Source"].apply(get_problem_class)
+    agg = (
+        df_best.groupby(["Source", "Class", "Dimension", "Optimizer_Base"])
+        .agg(
+            mu_gap=("Opt Gap", "mean"),
+            std_gap=("Opt Gap", "std"),
+            mu_time=("Time (s)", "mean"),
+            mu_evals=("Total Evals", "mean"),
+            n_runs=("Opt Gap", "size"),
+        )
+        .reset_index()
+    )
+    agg["Rank"] = agg.groupby(["Source", "Dimension"])["mu_gap"].rank(method="min")
+    return agg
+
+
+def format_gap(mu: float, std: float) -> str:
+    if pd.isna(mu):
+        return "nan"
+    if np.isinf(mu):
+        return "inf"
+    if pd.isna(std):
+        std = 0.0
+    if 0 < abs(mu) < 0.01 or abs(mu) >= 1e4 or abs(std) >= 1e4:
+        return f"{mu:.2e} +/- {std:.2e}"
+    return f"{mu:.2f} +/- {std:.2f}"
+
+
+def print_average_rank_by_class(df_dim: pd.DataFrame, dimension: int) -> None:
+    table = df_dim.pivot_table(
+        index="Class",
+        columns="Optimizer_Base",
+        values="Rank",
+        aggfunc="mean",
+    )
+    table.loc[f"OVERALL {dimension}D"] = df_dim.groupby("Optimizer_Base")["Rank"].mean()
+    print_pivot(table, f"TABLE 1: Average Rank {dimension}D by Problem Class")
+
+
+def print_scalability(df_agg: pd.DataFrame) -> None:
+    table = df_agg.pivot_table(
+        index="Dimension",
+        columns="Optimizer_Base",
+        values="Rank",
+        aggfunc="mean",
+    )
+    print_pivot(table, "TABLE 2: Average Rank by Dimension")
+
+
+def print_grid_ablation(df_dim: pd.DataFrame) -> None:
+    ablation = df_dim[df_dim["Optimizer_Base"].isin(["CDS (Ours)", "Pure Grid Search"])]
+    table = ablation.pivot_table(
+        index="Source",
+        columns="Optimizer_Base",
+        values="mu_gap",
+        aggfunc="first",
+    )
+    if {"CDS (Ours)", "Pure Grid Search"} - set(table.columns):
+        return
+
+    table = table[["CDS (Ours)", "Pure Grid Search"]].copy()
+    table["Grid/CDS"] = table["Pure Grid Search"] / table["CDS (Ours)"].replace(0, np.nan)
+    table["CDS wins"] = table["Grid/CDS"] > 1
+    print("\n--- TABLE 3: CDS vs Pure Grid Search ---")
+    print(render_table(table.round(4)))
+
+
+def print_deep_dive(df_dim: pd.DataFrame, fragments: list[str]) -> None:
+    mask = df_dim["Source"].apply(lambda source: any(fragment in source for fragment in fragments))
+    deep = df_dim[mask].copy()
+    if deep.empty:
+        return
+
+    deep["Gap"] = deep.apply(lambda row: format_gap(row["mu_gap"], row["std_gap"]), axis=1)
+    table = deep.pivot_table(
+        index="Source",
+        columns="Optimizer_Base",
+        values="Gap",
+        aggfunc="first",
+    )
+    cols = ordered_columns(table)
+    if cols:
+        table = table[cols]
+    print("\n--- TABLE 4: Detailed Optimality Gaps ---")
+    print(render_table(table))
+
+
+def print_time_table(df_dim: pd.DataFrame, dimension: int) -> None:
+    table = (
+        df_dim.groupby("Optimizer_Base")
+        .agg(mean_time_s=("mu_time", "mean"), mean_evals=("mu_evals", "mean"))
+        .sort_values("mean_time_s")
+    )
+    print(f"\n--- TABLE 5: Mean Runtime in {dimension}D ---")
+    print(render_table(table.round(2)))
+
+
+def extract_cds_h_n(name: str) -> tuple[float | None, int | None]:
+    h_match = re.search(r"h=([0-9.]+)", name)
+    n_match = re.search(r"(?:cells|N)=([0-9]+)", name)
+    h_value = float(h_match.group(1)) if h_match else None
+    n_value = int(n_match.group(1)) if n_match else None
+    return h_value, n_value
+
+
+def print_sensitivity_coordinates(raw: pd.DataFrame, dimension: int, fragment: str) -> None:
+    mask = (
+        raw["Optimizer_Base"].eq("CDS (Ours)")
+        & raw["Source"].str.contains(fragment, na=False)
+        & raw["Dimension"].eq(dimension)
+    )
+    cds = raw[mask].copy()
+    if cds.empty:
+        return
+
+    sensitivity = cds.groupby("Optimizer").agg(mu_gap=("Opt Gap", "mean")).reset_index()
+    sensitivity[["h", "N"]] = sensitivity["Optimizer"].apply(lambda name: pd.Series(extract_cds_h_n(name)))
+    sensitivity = sensitivity.dropna(subset=["h", "N"])
+    if sensitivity.empty:
+        return
+
+    print(f"\n--- TIKZ: CDS Sensitivity Coordinates ({fragment}, {dimension}D) ---")
+    for n_value, group in sensitivity.groupby("N"):
+        group = group.sort_values("h", ascending=False)
+        coords = " ".join(
+            f"({row.h}, {max(row.mu_gap, 0.0001):.4f})" for row in group.itertuples(index=False)
+        )
+        print(f"% N_init={int(n_value)}")
+        print(rf"\addplot coordinates {{ {coords} }};")
+        print(rf"\addlegendentry{{$N_\mathrm{{init}}={int(n_value)}$}}")
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    args = parse_args(argv)
+    df, excluded_count, warning = read_legacy_results(args.csv)
+    df_best, selected = select_fair_best_configs(df)
+    df_agg = build_aggregate(df_best)
+
+    available_dimensions = sorted(df_agg["Dimension"].dropna().astype(int).unique().tolist())
+    dimension = args.dimension if args.dimension in available_dimensions else available_dimensions[0]
+    df_dim = df_agg[df_agg["Dimension"].eq(dimension)].copy()
+
+    print("BBOB and linear-regression ranking analysis")
+    print(f"Input CSV: {args.csv}")
+    print(f"Rows: {len(df):,} | Sources: {df['Source'].nunique()} | Dimensions: {available_dimensions}")
+    if excluded_count:
+        print(f"Excluded DIRECTGOLib-like rows from legacy CSV: {excluded_count:,}")
+    if warning:
+        print(f"Warning: {warning}")
+    print("Selection rule: one best hyperparameter configuration per (Dimension, Optimizer_Base).")
+
+    selected_table = selected.sort_values(["Dimension", "Optimizer_Base"]).set_index(
+        ["Dimension", "Optimizer_Base"]
+    )
+    print("\n--- SELECTED CONFIGURATIONS ---")
+    print(render_table(selected_table))
+
+    print_average_rank_by_class(df_dim, dimension)
+    print_scalability(df_agg)
+    print_grid_ablation(df_dim)
+    print_deep_dive(df_dim, args.deep_dive)
+    print_time_table(df_dim, dimension)
+    print_sensitivity_coordinates(df, dimension, args.sensitivity_fragment)
+
+
+if __name__ == "__main__":
+    main()

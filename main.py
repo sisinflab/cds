@@ -41,7 +41,7 @@ def main_cli():
     args = parser.parse_args()
     if args.mode == 'benchmark':
         print('=====================================================')
-        print(' STARTING OFFICIAL BENCHMARK RUN (IEEE Access Revision)')
+        print(' STARTING BENCHMARK RUN')
         print('=====================================================')
         print(f' Tested dimensions  : {args.dims}')
         print(f' Eval budget        : {args.budget}')
@@ -61,7 +61,7 @@ def main_cli():
         settings_kwargs = {'budget_evaluations': args.budget, 'seeds': seeds, 'dimensions': tuple(args.dims), 'include_cds': not args.skip_cds, 'include_cmaes': not args.skip_cmaes, 'include_pso': not args.skip_pso, 'include_de': not args.skip_de, 'include_random': not args.skip_random, 'include_neldermead': not args.skip_neldermead, 'include_pdfo': not args.skip_pdfo, 'include_grid_search': not args.skip_grid, 'include_bads': not args.skip_bads, 'include_nomad': not args.skip_nomad, 'include_lshade': not args.skip_lshade}
         settings = BenchmarkSettings(**settings_kwargs)
         results_df = run_full_benchmark(settings, output_csv=args.out)
-        print(f"\n[+] RUN COMPLETED! Results were also streamed to '{args.out}' during execution.")
+        print(f"\nRun completed. Results were streamed to '{args.out}'.")
         create_summary_table(results_df)
     elif args.mode == 'quick':
         quick_run()
@@ -118,6 +118,6 @@ def main_cli():
             include_lshade=not args.skip_lshade,
         )
         run_directgolib_benchmark(settings, output_csv=args.out)
-        print(f"\n[+] DIRECTGOLib run completed! Results were streamed to '{args.out}'.")
+        print(f"\nDIRECTGOLib run completed. Results were streamed to '{args.out}'.")
 if __name__ == '__main__':
     main_cli()

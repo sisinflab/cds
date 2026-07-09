@@ -53,6 +53,7 @@ seaborn
 six
 SQLAlchemy
 sympy
+tabulate
 threadpoolctl
 torch
 torchvision

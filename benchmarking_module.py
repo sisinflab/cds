@@ -9,14 +9,6 @@ from scipy.optimize import differential_evolution, minimize, NonlinearConstraint
 from sklearn.preprocessing import StandardScaler
 from core import ObjectiveTracker, SphereCellularDirectSearch
 
-def _configure_matplotlib_backend() -> None:
-    try:
-        import matplotlib
-        matplotlib.use('TkAgg')
-    except Exception:
-        pass
-_configure_matplotlib_backend()
-
 @dataclass(frozen=True)
 class ProblemSpec:
     name: str
