@@ -184,7 +184,7 @@ class AbstractCellularDirectSearch(ABC):
 
 class SphereCellularDirectSearch(AbstractCellularDirectSearch):
 
-    def __init__(self, n_variables: int, radius: float, step_size: float | np.ndarray, objective_function: Callable[[np.ndarray], np.ndarray | float], num_active_cells: Optional[int]=None, seed: Optional[int]=None, track_roots: bool=True, legacy_initialization: bool=True) -> None:
+    def __init__(self, n_variables: int, radius: float, step_size: float | np.ndarray, objective_function: Callable[[np.ndarray], np.ndarray | float], num_active_cells: Optional[int]=None, seed: Optional[int]=None, track_roots: bool=True) -> None:
         self.n = int(n_variables)
         self.radius = float(radius)
         self.step_size = np.full(self.n, step_size, dtype=float) if np.isscalar(step_size) else np.asarray(step_size, dtype=float)
@@ -192,7 +192,6 @@ class SphereCellularDirectSearch(AbstractCellularDirectSearch):
             raise ValueError(f'step_size must have shape ({self.n},), got {self.step_size.shape}')
         self.objective_function = objective_function
         self.track_roots = bool(track_roots)
-        self.legacy_initialization = bool(legacy_initialization)
         if seed is not None:
             np.random.seed(seed)
             random.seed(seed)
@@ -228,12 +227,8 @@ class SphereCellularDirectSearch(AbstractCellularDirectSearch):
         directions = np.random.normal(size=(self.num_active_cells, self.n))
         norms = np.linalg.norm(directions, axis=1, keepdims=True)
         norms[norms == 0.0] = 1.0
-        if self.legacy_initialization:
-            uniform = np.random.uniform(0.0, 0.8 * self.radius, size=self.num_active_cells)
-            coordinates = 0.8 * self.radius * uniform[:, np.newaxis] * directions / norms
-        else:
-            radii = np.random.uniform(0.0, 0.8 * self.radius, size=(self.num_active_cells, 1))
-            coordinates = radii * directions / norms
+        uniform = np.random.uniform(0.0, 0.8 * self.radius, size=self.num_active_cells)
+        coordinates = uniform[:, np.newaxis] * directions / norms
         raw_indices = (coordinates + self.radius) / self.step_size
         indices = np.rint(raw_indices).astype(int)
         indices = np.clip(indices, 0, self.grid_shape - 1)
@@ -259,7 +254,6 @@ class BoxCellularDirectSearch(AbstractCellularDirectSearch):
             raise ValueError('each bound must satisfy lower < upper')
         self.objective_function = objective_function
         self.track_roots = False
-        self.legacy_initialization = False
         self.num_active_cells = int(num_active_cells)
         if seed is not None:
             np.random.seed(seed)
